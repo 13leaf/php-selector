@@ -26,16 +26,6 @@ Given the sample html:
     </div>
   HTML;
   
-The following will return an array of elements:
-
-  select_elements('div#article.large', $html);
-  select_elements('div > h2:contains(Article)', $html);
-  select_elements('div p + ul', $html);
-  select_elements('ul > li:first-child', $html);
-  select_elements('ul > li ~ li', $html);
-  select_elements('ul > li:last-child', $html);
-  select_elements('li a[href=#]', $html);
-  
 == SelectorDOM
 
 Persistant object for element selection.
@@ -43,6 +33,8 @@ Persistant object for element selection.
   $dom = new SelectorDOM($html);
   $links = $dom->select('a');
   $list_links = $dom->select('ul li a');
+  $description = $dom->select('#content')->select('.desc-content')->text();
+  $hrefs = array_map(function($dom){return $dom->attr('href')},$dom->select('#content')->select('a')->elements());
 
 == Contribution
 

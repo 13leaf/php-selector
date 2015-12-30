@@ -19,7 +19,7 @@ class SelectorDOM implements \IteratorAggregate{
     /**
      * @var DomNode[]
      */
-    private $elements=[];
+    private $nodes=[];
 
     /**
      * @var DOMDocument
@@ -41,7 +41,7 @@ class SelectorDOM implements \IteratorAggregate{
             $data = [$data];
         }
         if(is_array($data)){
-            $this->setElements($data);
+            $this->setNodes($data);
             if(isset($data[0])){
                 $this->document = $data[0]->ownerDocument;
                 $this->xpath = new DOMXPath($this->document);
@@ -49,36 +49,41 @@ class SelectorDOM implements \IteratorAggregate{
         }else if (is_string($data)) {
             $this->document = new DOMDocument();
             @$this->document->loadHTML($data);
-            $this->setElements([$this->document]);
+            $this->setNodes([$this->document]);
             $this->xpath = new DOMXpath($this->document);
         }
     }
 
     public function getIterator()
     {
-        return new ArrayIterator(array_map(function($dom){return qd($dom);},$this->elements()));
+        return new ArrayIterator($this->selements());
     }
 
-    protected function setElements($elements)
+    protected function setNodes($nodes)
     {
-        $this->elements=[];
-        foreach($elements as $element){
-            if($element instanceof DomNode) {
-                $this->elements[] = $element;
-            }else if($element instanceof SelectorDOM) {
-                $this->elements = array_merge($this->elements, $element->elements);
+        $this->nodes=[];
+        foreach($nodes as $node){
+            if($node instanceof DomNode) {
+                $this->nodes[] = $node;
+            }else if($node instanceof SelectorDOM) {
+                $this->nodes = array_merge($this->nodes, $node->nodes);
             }
         }
     }
 
     public function elements()
     {
-        return $this->elements;
+        return array_map(function($dom){return qd($dom);},$this->nodes());
+    }
+
+    public function nodes()
+    {
+        return $this->nodes;
     }
 
     public function get()
     {
-        return $this->elements[0];
+        return $this->nodes[0];
     }
 
     public function html()
@@ -97,11 +102,11 @@ class SelectorDOM implements \IteratorAggregate{
     }
 
     public function select($selector) {
-        if(empty($this->elements())){
+        if(empty($this->nodes())){
             return self::NULL_DOM();
         }
         $domElements = [];
-        foreach($this->elements as $contextElement){
+        foreach($this->nodes as $contextElement){
             foreach($this->xpath->evaluate(selector_to_xpath($selector),$contextElement) as $dom){
                 $domElements[]=$dom;
             }
@@ -110,12 +115,11 @@ class SelectorDOM implements \IteratorAggregate{
     }
 }
 
-/**
-* quick query dom
-* @params $dom can be dom string,DOMNode or DOMNode array
-*/
 function qd($dom)
 {
+    if($dom instanceof SelectorDOM){
+        return $dom;
+    }
     return new SelectorDOM($dom);
 }
 
