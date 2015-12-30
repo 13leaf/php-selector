@@ -15,74 +15,114 @@ define('SELECTOR_VERSION', '1.1.6');
  *
  */
 
-class SelectorDOM {
-  public function SelectorDOM($data) {
-    if ($data instanceof DOMDocument) {
-        $this->xpath = new DOMXpath($data);
-    } else {
-        $dom = new DOMDocument();
-        @$dom->loadHTML($data);
-        $this->xpath = new DOMXpath($dom);
+class SelectorDOM implements \IteratorAggregate{
+    /**
+     * @var DomNode[]
+     */
+    private $elements=[];
+
+    /**
+     * @var DOMDocument
+     */
+    private $document;
+
+    protected static function NULL_DOM()
+    {
+        static $nullDom=null;
+        if($nullDom === null){
+            $nullDom = new SelectorDOM([]);
+        }
+        return $nullDom;
     }
-  }
-  
-  public function select($selector, $as_array = true) {
-    $elements = $this->xpath->evaluate(selector_to_xpath($selector));
-    return $as_array ? elements_to_array($elements) : $elements;
-  }
+
+    public function SelectorDOM($data) {
+        if($data instanceof DomNode)
+        {
+            $data = [$data];
+        }
+        if(is_array($data)){
+            $this->setElements($data);
+            if(isset($data[0])){
+                $this->document = $data[0]->ownerDocument;
+                $this->xpath = new DOMXPath($this->document);
+            }
+        }else if (is_string($data)) {
+            $this->document = new DOMDocument();
+            @$this->document->loadHTML($data);
+            $this->setElements([$this->document]);
+            $this->xpath = new DOMXpath($this->document);
+        }
+    }
+
+    public function getIterator()
+    {
+        return new ArrayIterator(array_map(function($dom){return qd($dom);},$this->elements()));
+    }
+
+    protected function setElements($elements)
+    {
+        $this->elements=[];
+        foreach($elements as $element){
+            if($element instanceof DomNode) {
+                $this->elements[] = $element;
+            }else if($element instanceof SelectorDOM) {
+                $this->elements = array_merge($this->elements, $element->elements);
+            }
+        }
+    }
+
+    public function elements()
+    {
+        return $this->elements;
+    }
+
+    public function get()
+    {
+        return $this->elements[0];
+    }
+
+    public function html()
+    {
+        return $this->document->saveHTML($this->get());
+    }
+
+    public function text()
+    {
+        return trim($this->get()->textContent);
+    }
+
+    public function attr($attrName)
+    {
+        return $this->get()->getAttribute($attrName);
+    }
+
+    public function select($selector) {
+        if(empty($this->elements())){
+            return self::NULL_DOM();
+        }
+        $domElements = [];
+        foreach($this->elements as $contextElement){
+            foreach($this->xpath->evaluate(selector_to_xpath($selector),$contextElement) as $dom){
+                $domElements[]=$dom;
+            }
+        }
+        return new SelectorDOM($domElements);
+    }
 }
 
 /**
- * Select elements from $html using the css $selector.
- * When $as_array is true elements and their children will
- * be converted to array's containing the following keys (defaults to true):
- *
- *  - name : element name
- *  - text : element text
- *  - children : array of children elements
- *  - attributes : attributes array
- *
- * Otherwise regular DOMElement's will be returned.
- */
-
-function select_elements($selector, $html, $as_array = true) {
-  $dom = new SelectorDOM($html);
-  return $dom->select($selector, $as_array);
+* quick query dom
+* @params $dom can be dom string,DOMNode or DOMNode array
+*/
+function qd($dom)
+{
+    return new SelectorDOM($dom);
 }
 
-/**
- * Convert $elements to an array.
- */
-
-function elements_to_array($elements) {
-  $array = array();
-  for ($i = 0, $length = $elements->length; $i < $length; ++$i)
-    if ($elements->item($i)->nodeType == XML_ELEMENT_NODE)
-      array_push($array, element_to_array($elements->item($i)));
-  return $array;
-}
-
-/**
- * Convert $element to an array.
- */
-
-function element_to_array($element) {
-  $array = array(
-    'name' => $element->nodeName,
-    'attributes' => array(),
-    'text' => $element->textContent,
-    'children' =>elements_to_array($element->childNodes)
-    );
-  if ($element->attributes->length)
-    foreach($element->attributes as $key => $attr)
-      $array['attributes'][$key] = $attr->value;
-  return $array;
-}
 
 /**
  * Convert $selector into an XPath string.
  */
-
 function selector_to_xpath($selector) {
     // remove spaces around operators
     $selector = preg_replace('/\s*>\s*/', '>', $selector);
@@ -164,6 +204,6 @@ function selector_to_xpath($selector) {
     }
 
     $selector = implode(',', $sub_selectors);
-    
+
     return $selector;
 }
